@@ -1,0 +1,291 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+  background: linear-gradient(135deg, #f0f2f5 0%, #e8ecf4 50%, #f5f0f8 100%);
+  background-size: 200% 200%;
+  animation: gradientShift 30s ease infinite;
+  color: #333;
+  min-height: 100vh;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+#zhimian-app {
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+/* 页面容器 */
+.page-container {
+  min-height: calc(100vh - 56px);
+}
+.page-container--guest {
+  min-height: 100vh;
+}
+.page-container--fullscreen {
+  max-width: 100%;
+  padding: 0;
+}
+
+/* 认证页（全屏 — 由各组件 scoped 控制） */
+
+/* ========== 卡片通用样式 ========== */
+.el-card {
+  border-radius: 14px !important;
+  border: none !important;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+}
+
+.el-card:not(.el-card--plain):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* 标签间距 */
+.el-tag + .el-tag {
+  margin-left: 4px;
+}
+
+/* ========== 导航菜单 ========== */
+.el-menu--horizontal {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: none !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  padding: 0 24px;
+}
+
+.el-menu--horizontal .el-menu-item,
+.el-menu--horizontal .el-sub-menu__title {
+  height: 56px !important;
+  line-height: 56px !important;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.el-menu--horizontal .el-menu-item.is-active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 3px;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  border-radius: 4px 4px 0 0;
+  transition: width 0.25s ease;
+}
+
+.el-menu--horizontal .el-menu-item.is-active:hover::after {
+  width: 32px;
+}
+
+/* ========== 滚动条 ========== */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d0d5dd;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b0b5bd;
+}
+
+/* ========== 按钮 ========== */
+.el-button {
+  border-radius: 8px !important;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+.el-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.25);
+}
+.el-button:active {
+  transform: translateY(0);
+}
+
+/* ========== 输入框 ========== */
+.el-input__wrapper,
+.el-textarea__inner {
+  border-radius: 10px !important;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease !important;
+}
+.el-input__wrapper:hover,
+.el-textarea__inner:hover {
+  box-shadow: 0 0 0 1px #c0c4cc inset !important;
+}
+.el-input__wrapper.is-focus,
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25) inset !important;
+  border-color: #667eea !important;
+}
+
+/* ========== 骨架屏 ========== */
+.el-skeleton {
+  --el-skeleton-color: #f0f2f5;
+  --el-skeleton-to-color: #e4e8f0;
+}
+
+/* ========== 仿移动端 App 页面过渡动画 ========== */
+/* 入场：卡片从底部展开 + 渐显 + 缩放（慢入，减速缓动） */
+.fade-enter-active {
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: center bottom;
+  backface-visibility: hidden;
+}
+/* 离场：卡片快速收缩 + 上移 + 渐隐（快出，加速缓动） */
+.fade-leave-active {
+  transition: all 0.22s cubic-bezier(0.55, 0.06, 0.68, 0.19);
+  transform-origin: center top;
+  backface-visibility: hidden;
+}
+.fade-enter-from {
+  opacity: 0;
+  transform: translateY(32px) scale(0.92);
+}
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-16px) scale(0.95);
+}
+
+/* slide-up — 用于子元素入场 */
+.slide-up-enter-active {
+  transition: all 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.slide-up-leave-active {
+  transition: all 0.25s ease-in;
+}
+.slide-up-enter-from {
+  opacity: 0;
+  transform: translateY(16px);
+}
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+/* ===== 通用入场动画工具类 ===== */
+.animate-in {
+  animation: animateIn 0.45s cubic-bezier(0.25, 0.1, 0.25, 1) both;
+}
+
+@keyframes animateIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 错峰延迟工具 */
+.stagger-delay-1 { animation-delay: 0.05s; }
+.stagger-delay-2 { animation-delay: 0.10s; }
+.stagger-delay-3 { animation-delay: 0.15s; }
+.stagger-delay-4 { animation-delay: 0.20s; }
+.stagger-delay-5 { animation-delay: 0.25s; }
+.stagger-delay-6 { animation-delay: 0.30s; }
+.stagger-delay-7 { animation-delay: 0.35s; }
+.stagger-delay-8 { animation-delay: 0.40s; }
+
+/* ========== 全局文本选中色 ========== */
+::selection {
+  background: rgba(102, 126, 234, 0.25);
+  color: inherit;
+}
+
+/* ========== 键盘焦点环 ========== */
+*:focus-visible {
+  outline: 2px solid rgba(102, 126, 234, 0.6);
+  outline-offset: 2px;
+}
+
+/* ========== 链接基本样式 ========== */
+a {
+  color: #667eea;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+a:hover {
+  color: #764ba2;
+}
+
+/* ========== 弹窗动画（手机风格缩放） ========== */
+
+/* 弹窗打开/关闭缩放动画 */
+.dialog-fade-enter-active {
+  transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.dialog-fade-leave-active {
+  transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.dialog-fade-enter-from,
+.dialog-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.88);
+}
+
+/* Dialog 遮罩渐入 */
+.el-overlay {
+  animation: overlayFadeIn 0.25s ease both;
+}
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 弹窗面板圆角 + 阴影 */
+.el-dialog {
+  border-radius: 16px !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15), 0 4px 16px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* ElMessageBox 统一风格 */
+.el-message-box {
+  border-radius: 16px !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15), 0 4px 16px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* ========== 通用卡片内边距统一 ========== */
+.el-card__body {
+  padding: 20px 24px;
+}
+
+/* ========== el-empty 居中 ========== */
+.el-empty {
+  padding: 60px 0;
+}
+
+/* ========== 响应式适配 ========== */
+@media (max-width: 640px) {
+  .container {
+    padding: 16px 12px;
+  }
+  .auth-page {
+    margin: 40px auto;
+    padding: 0 12px;
+  }
+}

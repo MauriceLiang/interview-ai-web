@@ -665,7 +665,7 @@ async function connectSSE(sessionId) {
 
 ## 📄 开源协议
 
-本项目仅用于学习和竞赛目的。
+本项目仅用于学习目的,暂时不能用于竞赛。
 
 ---
 

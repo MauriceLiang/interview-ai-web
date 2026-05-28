@@ -57,3 +57,8 @@ export function switchProvider(provider) {
     body: JSON.stringify({ provider }),
   })
 }
+
+/** 测试 AI 连通性 */
+export function testProvider() {
+  return request('/api/admin/provider/test', { method: 'POST' })
+}

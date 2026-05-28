@@ -188,6 +188,8 @@ const submitting = ref(false)
 const currentQuestionText = ref('')
 /** 当前轮的 qaRecordId（由后端 submitAnswer 返回） */
 const currentQaRecordId = ref(null)
+/** 正在流式接收的消息在 msgs 数组中的索引，-1 表示没有正在流式接收的消息 */
+const streamingMsgIndex = ref(-1)
 
 let abortCtrl = null
 /** SSE 代际计数器：每次新连接递增，过期的微任务数据被丢弃 */
@@ -294,10 +296,45 @@ function openQuestionSSE() {
 
   // 每个 SSE 连接使用独立累加器，不共享 currentQuestionText
   let accumulated = ''
+  // 当前连接的流式消息在 msgs 中的索引
+  let localStreamingIdx = -1
+  // 字符缓冲区 + 定时显示（统一 AI 和题库的出题速度）
+  let charBuffer = []
+  let streamFinished = false
+  let displayTimer = null
+
+  function startDisplayTimer() {
+    displayTimer = setInterval(() => {
+      if (charBuffer.length > 0) {
+        const ch = charBuffer.shift()
+        accumulated += ch
+        if (localStreamingIdx >= 0) {
+          msgs.value[localStreamingIdx].text = accumulated
+        }
+        scrollToBottom()
+      } else if (streamFinished) {
+        // 缓冲区已清空且流已结束，收尾
+        clearInterval(displayTimer)
+        displayTimer = null
+        currentQuestionText.value = accumulated
+        if (localStreamingIdx === -1 && accumulated) {
+          addMsg('ai', accumulated)
+        }
+        streamingMsgIndex.value = -1
+        thinking.value = false
+      }
+    }, 15)
+  }
+
+  function cleanupTimer() {
+    if (displayTimer) {
+      clearInterval(displayTimer)
+      displayTimer = null
+    }
+  }
 
   const url = `/api/interview/${id}/stream/question`
   console.log('[SSE] 开始连接, 代际:', gen)
-  const startTime = Date.now()
 
   createSSE(url, abortCtrl.signal)
     .then(res => {
@@ -312,7 +349,7 @@ function openQuestionSSE() {
 
       const read = () => {
         reader.read().then(({ done, value }) => {
-          if (gen !== sseGeneration) return
+          if (gen !== sseGeneration) { cleanupTimer(); return }
           if (done) return
 
           const chunk = decoder.decode(value, { stream: true })
@@ -330,13 +367,26 @@ function openQuestionSSE() {
             eventCount++
 
             if (type === 'question_chunk') {
-              accumulated += data
-            } else if (type === 'question_complete') {
-              // 复制到共享 ref 供 onSubmit 使用
-              currentQuestionText.value = accumulated
-              if (accumulated) {
-                addMsg('ai', accumulated)
+              // 将 chunk 拆成单个字符放入缓冲区
+              for (const ch of data) {
+                charBuffer.push(ch)
               }
+              // 首个 chunk：初始化消息气泡并启动显示定时器
+              if (localStreamingIdx === -1) {
+                thinking.value = false
+                localStreamingIdx = msgs.value.length
+                streamingMsgIndex.value = localStreamingIdx
+                msgs.value.push({
+                  role: 'ai',
+                  text: '',
+                  score: null,
+                  time: new Date().toLocaleTimeString()
+                })
+                startDisplayTimer()
+                scrollToBottom()
+              }
+            } else if (type === 'question_complete') {
+              streamFinished = true
               // 解析后端下发的 qaRecordId（如果有）
               try {
                 const meta = JSON.parse(data)
@@ -344,24 +394,27 @@ function openQuestionSSE() {
                   currentQaRecordId.value = meta.qaRecordId
                 }
               } catch (_) { /* 兼容旧格式 {"status":"done"} */ }
-              thinking.value = false
             }
           }
           read()
         }).catch(err => {
+          cleanupTimer()
           if (err.name !== 'AbortError') {
             console.error('[SSE] 读取出错:', err)
-            thinking.value = false
           }
+          thinking.value = false
+          streamingMsgIndex.value = -1
         })
       }
       read()
     })
     .catch(err => {
+      cleanupTimer()
       if (err.name !== 'AbortError') {
         console.error('[SSE] 连接失败:', err)
-        thinking.value = false
       }
+      thinking.value = false
+      streamingMsgIndex.value = -1
     })
 }
 
@@ -413,7 +466,45 @@ function openScoreSSE() {
   cancelSSE()
   const gen = ++sseGeneration
   abortCtrl = new AbortController()
-  let buffer = ''
+
+  let accumulated = ''
+  let localStreamingIdx = -1
+  let charBuffer = []
+  let streamFinished = false
+  let displayTimer = null
+  let scoredData = null // 保存 score_complete 的结构化数据
+
+  function startDisplayTimer() {
+    displayTimer = setInterval(() => {
+      if (charBuffer.length > 0) {
+        const ch = charBuffer.shift()
+        accumulated += ch
+        if (localStreamingIdx >= 0) {
+          msgs.value[localStreamingIdx].text = accumulated
+        }
+        scrollToBottom()
+      } else if (streamFinished && scoredData) {
+        // 缓冲区已清空且流已结束 → 用结构化数据替换流式文本，渲染评分卡片
+        clearInterval(displayTimer)
+        displayTimer = null
+        // 移除流式文本消息，替换为评分卡片
+        if (localStreamingIdx >= 0) {
+          msgs.value.splice(localStreamingIdx, 1)
+        }
+        renderScoreCard(scoredData)
+        streamingMsgIndex.value = -1
+        thinking.value = false
+        cancelSSE()
+      }
+    }, 15)
+  }
+
+  function cleanupTimer() {
+    if (displayTimer) {
+      clearInterval(displayTimer)
+      displayTimer = null
+    }
+  }
 
   let scored = false
 
@@ -422,12 +513,12 @@ function openScoreSSE() {
       if (!res.ok) throw new Error('评分SSE ' + res.status)
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
+      let buffer = ''
 
       function read() {
         reader.read().then(({ done, value }) => {
-          if (gen !== sseGeneration) return
+          if (gen !== sseGeneration) { cleanupTimer(); return }
           if (done) {
-            // 流关闭但评分未到，不做任何事，由超时兜底处理
             if (!scored) {
               console.warn('[SSE] 评分连接意外关闭')
             }
@@ -447,62 +538,79 @@ function openScoreSSE() {
 
             if (!data) continue
 
-            if (eventType === 'score_complete') {
-              try {
-                const sc = JSON.parse(data)
-                // 解析各维度分数
-                const dims = []
-                if (sc.technicalAccuracy?.score != null) {
-                  dims.push({ name: 'technicalAccuracy', label: '技术准确性', score: sc.technicalAccuracy.score, color: '#409eff' })
-                }
-                if (sc.clarity?.score != null) {
-                  dims.push({ name: 'clarity', label: '表达清晰度', score: sc.clarity.score, color: '#67c23a' })
-                }
-                if (sc.completeness?.score != null) {
-                  dims.push({ name: 'completeness', label: '完整性', score: sc.completeness.score, color: '#e6a23c' })
-                }
-                if (sc.depth?.score != null) {
-                  dims.push({ name: 'depth', label: '深度', score: sc.depth.score, color: '#f56c6c' })
-                }
-
-                addMsg('ai', '📊 评分结果', {
-                  total: sc.totalScore,
-                  dims,
-                  summary: sc.summary,
-                  suggestions: sc.suggestions
+            if (eventType === 'score_chunk') {
+              // 将字符放入缓冲区
+              for (const ch of data) {
+                charBuffer.push(ch)
+              }
+              // 首个 chunk：初始化流式消息气泡
+              if (localStreamingIdx === -1) {
+                thinking.value = false
+                localStreamingIdx = msgs.value.length
+                streamingMsgIndex.value = localStreamingIdx
+                msgs.value.push({
+                  role: 'ai',
+                  text: '',
+                  score: null,
+                  time: new Date().toLocaleTimeString()
                 })
-                state.value = 'SCORING'
+                startDisplayTimer()
+                scrollToBottom()
+              }
+            } else if (eventType === 'score_complete') {
+              try {
+                scoredData = JSON.parse(data)
               } catch (e2) {
                 console.error('评分解析失败', e2)
               }
+              streamFinished = true
               scored = true
-              // 确保评分消息渲染到 DOM 后，再显示下一题按钮
-              nextTick(() => {
-                setTimeout(() => {
-                  thinking.value = false
-                  cancelSSE()
-                }, 350)
-              })
             }
           }
           read()
         }).catch(err => {
+          cleanupTimer()
           if (err.name !== 'AbortError') console.error(err)
         })
       }
       read()
-      // 兜底超时：60 秒后如果评分还没到，才释放按钮（避免用户永久卡住）
+      // 兜底超时：120 秒后如果评分还没到
       setTimeout(() => {
         if (!scored) {
-          console.warn('[SSE] 评分超时 60s')
+          console.warn('[SSE] 评分超时 120s')
+          cleanupTimer()
           thinking.value = false
         }
-      }, 60000)
+      }, 120000)
     })
     .catch(err => {
+      cleanupTimer()
       if (err.name !== 'AbortError') console.error(err)
-      // 连接阶段出错不影响已有状态，等超时兜底
     })
+}
+
+function renderScoreCard(sc) {
+  const dims = []
+  if (sc.technicalAccuracy?.score != null) {
+    dims.push({ name: 'technicalAccuracy', label: '技术准确性', score: sc.technicalAccuracy.score, color: '#409eff' })
+  }
+  if (sc.clarity?.score != null) {
+    dims.push({ name: 'clarity', label: '表达清晰度', score: sc.clarity.score, color: '#67c23a' })
+  }
+  if (sc.completeness?.score != null) {
+    dims.push({ name: 'completeness', label: '完整性', score: sc.completeness.score, color: '#e6a23c' })
+  }
+  if (sc.depth?.score != null) {
+    dims.push({ name: 'depth', label: '深度', score: sc.depth.score, color: '#f56c6c' })
+  }
+
+  addMsg('ai', '📊 评分结果', {
+    total: sc.totalScore,
+    dims,
+    summary: sc.summary,
+    suggestions: sc.suggestions
+  })
+  state.value = 'SCORING'
 }
 
 // ===== 下一轮 =====
@@ -542,6 +650,7 @@ function cancelSSE() {
     abortCtrl.abort()
     abortCtrl = null
   }
+  streamingMsgIndex.value = -1
 }
 </script>
 
@@ -700,8 +809,8 @@ function cancelSSE() {
   letter-spacing: 0;
 }
 .avatar.ai {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: #fff;
+  background: #37474f;
+  color: #eceff1;
 }
 .avatar.me {
   background: linear-gradient(135deg, #409eff, #337ecc);

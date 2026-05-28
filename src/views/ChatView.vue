@@ -152,7 +152,7 @@ import { getToken, getMe } from '../api/index.js'
 import { getRooms, getHistory, muteUser, unmuteUser, getMutedUsers, getSpeakers } from '../api/chat.js'
 import { ElMessage } from 'element-plus'
 import { Promotion } from '@element-plus/icons-vue'
-import { isConnected, publish, subscribeRoom, unsubscribeRoom } from '../lib/stomp.js'
+import { isConnected, publish, subscribeRoom, unsubscribeRoom, onConnected } from '../lib/stomp.js'
 
 let roomSub = null
 
@@ -232,6 +232,9 @@ onMounted(async () => {
     myRole.value = me.role || ''
     isAdmin.value = me.role === 'ADMIN'
   } catch { /* ignore */ }
+
+  // 监听连接状态
+  onConnected(() => { connected.value = true })
 
   // 加载聊天室信息
   try {

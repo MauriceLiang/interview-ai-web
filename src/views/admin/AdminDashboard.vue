@@ -17,9 +17,23 @@
         <el-option v-for="m in availableModels" :key="m" :label="m" :value="m" />
       </el-select>
       <span v-if="modelSwitching" class="model-switch-tip">切换中…</span>
+      <el-button size="small" @click="onTestAI" :loading="testingAI" type="primary" plain>
+        <el-icon><Connection /></el-icon> 测试AI
+      </el-button>
+      <span v-if="testResult" class="test-result" :class="'test-' + testResult.overall">{{ testResult.text }}</span>
       <el-button size="small" text @click="loadAll" :loading="loading">
         <el-icon><Refresh /></el-icon>
       </el-button>
+    </div>
+
+    <!-- Provider 详细状态 -->
+    <div class="provider-status-bar" v-if="providerStatuses.length">
+      <span v-for="ps in providerStatuses" :key="ps.name" class="provider-chip" :class="'chip-' + (ps.available ? 'ok' : 'bad')">
+        <span class="chip-dot" :class="ps.active ? 'dot-active' : 'dot-standby'" />
+        {{ ps.name }}
+        <span class="chip-tag">{{ ps.active ? '当前' : '备用' }}</span>
+        <span class="chip-state">· {{ ps.circuitState === 'CLOSED' ? '正常' : ps.circuitState === 'HALF_OPEN' ? '半开' : ps.circuitState === 'OPEN' ? '熔断' : '未配置' }}</span>
+      </span>
     </div>
 
     <!-- ===== 核心指标卡片（4列 × 2行） ===== -->
@@ -42,39 +56,35 @@
       </el-col>
     </el-row>
 
-    <!-- ===== 异常监控 ===== -->
-    <el-row :gutter="16" v-if="data">
-      <el-col :xs="24" :md="12">
-        <el-card class="section-card">
-          <template #header><span class="section-title">🔴 近期 AI 失败（最近1h）</span></template>
-          <el-table v-if="data.recentAiFailures?.length" :data="data.recentAiFailures" stripe size="small" max-height="220">
-            <el-table-column prop="provider" label="提供商" width="80" />
-            <el-table-column prop="callType" label="类型" width="70" />
-            <el-table-column prop="errorMessage" label="错误信息" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="createdAt" label="时间" width="80" />
-          </el-table>
-          <el-empty v-else description="✅ 近期无 AI 调用失败" :image-size="60" />
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :md="12">
-        <el-card class="section-card">
-          <template #header>
-            <span class="section-title">⚠️ 异常账号</span>
-            <el-button size="small" text @click="loadLocked" :loading="lockedLoading">刷新</el-button>
+    <!-- ===== 近期 AI 失败 ===== -->
+    <el-card class="section-card" v-if="data" :body-style="{ height: '340px', overflow: 'auto' }">
+      <template #header><span class="section-title">🔴 近期 AI 失败（最近1h）</span></template>
+      <el-table v-if="data.recentAiFailures?.length" :data="data.recentAiFailures" stripe size="small">
+        <el-table-column prop="provider" label="提供商" width="80" />
+        <el-table-column prop="callType" label="类型" width="70" />
+        <el-table-column prop="errorMessage" label="错误信息" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="createdAt" label="时间" width="80" />
+      </el-table>
+      <el-empty v-else description="✅ 近期无 AI 调用失败" :image-size="60" />
+    </el-card>
+
+    <!-- ===== 异常账号 ===== -->
+    <el-card class="section-card" v-if="data" :body-style="{ height: '340px', overflow: 'auto' }">
+      <template #header>
+        <span class="section-title">⚠️ 异常账号</span>
+        <el-button size="small" text @click="loadLocked" :loading="lockedLoading">刷新</el-button>
+      </template>
+      <el-table v-if="lockedUsers.length" :data="lockedUsers" stripe size="small">
+        <el-table-column prop="username" label="用户名" min-width="100" />
+        <el-table-column prop="lockedReason" label="原因" min-width="140" show-overflow-tooltip />
+        <el-table-column label="操作" width="80">
+          <template #default="{ row }">
+            <el-button size="small" text type="success" @click="onUnlock(row)">解锁</el-button>
           </template>
-          <el-table v-if="lockedUsers.length" :data="lockedUsers" stripe size="small" max-height="220">
-            <el-table-column prop="username" label="用户名" min-width="100" />
-            <el-table-column prop="lockedReason" label="原因" min-width="140" show-overflow-tooltip />
-            <el-table-column label="操作" width="80">
-              <template #default="{ row }">
-                <el-button size="small" text type="success" @click="onUnlock(row)">解锁</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-          <el-empty v-else description="✅ 无异常账号" :image-size="60" />
-        </el-card>
-      </el-col>
-    </el-row>
+        </el-table-column>
+      </el-table>
+      <el-empty v-else description="✅ 无异常账号" :image-size="60" />
+    </el-card>
 
     <!-- ===== 今日面试详情 ===== -->
     <el-card class="section-card" v-if="data">
@@ -154,9 +164,9 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getDashboard, getLockedUsers, setUserStatus, getProvider, switchProvider as switchProviderApi } from '../../api/admin.js'
+import { getDashboard, getLockedUsers, setUserStatus, getProvider, switchProvider as switchProviderApi, testProvider as testProviderApi } from '../../api/admin.js'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
+import { Refresh, Connection } from '@element-plus/icons-vue'
 
 const loading = ref(false)
 const data = ref(null)
@@ -165,6 +175,10 @@ const lockedLoading = ref(false)
 const activeModel = ref('')
 const availableModels = ref([])
 const modelSwitching = ref(false)
+const testingAI = ref(false)
+const testResult = ref(null)
+const providerStatuses = ref([])
+const aiTestStatus = ref(null)  // null=使用仪表盘状态, 测试后覆盖
 
 const statCards1 = computed(() => {
   if (!data.value) return []
@@ -191,9 +205,10 @@ const healthDots = computed(() => {
   if (!data.value?.health) return []
   const h = data.value.health
   return [
-    { key: 'ai', name: 'AI', status: h.aiStatus, icon: h.aiStatus === 'green' ? '✅' : h.aiStatus === 'yellow' ? '⚠️' : '🔴', detail: h.aiDetail },
+    { key: 'ai', name: 'AI', status: aiTestStatus.value || h.aiStatus, icon: (aiTestStatus.value || h.aiStatus) === 'green' ? '✅' : (aiTestStatus.value || h.aiStatus) === 'yellow' ? '⚠️' : '🔴', detail: aiTestStatus.value ? '手动测试结果' : h.aiDetail },
     { key: 'db', name: 'DB', status: h.dbStatus, icon: '✅', detail: h.dbDetail },
     { key: 'redis', name: 'Redis', status: h.redisStatus, icon: '✅', detail: h.redisDetail },
+    { key: 'circuit', name: '熔断', status: h.circuitStatus, icon: h.circuitStatus === 'green' ? '✅' : h.circuitStatus === 'yellow' ? '⚠️' : '🔴', detail: h.circuitStatus === 'green' ? '主 Provider 正常' : h.circuitStatus === 'yellow' ? '主 Provider 已降级' : '所有 Provider 不可用' },
   ]
 })
 
@@ -204,6 +219,7 @@ async function loadAll() {
   loading.value = true
   try {
     data.value = await getDashboard()
+    aiTestStatus.value = null  // 重置为仪表盘状态
     await loadLocked()
     await loadModelInfo()
   } catch (e) {
@@ -222,6 +238,7 @@ async function loadModelInfo() {
     const info = await getProvider()
     activeModel.value = info.active
     availableModels.value = info.available || []
+    providerStatuses.value = info.statuses || []
   } catch { /* ignore */ }
 }
 
@@ -230,10 +247,41 @@ async function onModelSwitch(val) {
   try {
     await switchProviderApi(val)
     ElMessage.success('已切换至 ' + val)
+    await loadModelInfo()
+    await loadAll()
+    await onTestAI()
   } catch (e) {
     ElMessage.error('切换失败: ' + e.message)
     loadModelInfo()
   } finally { modelSwitching.value = false }
+}
+
+async function onTestAI() {
+  testingAI.value = true
+  testResult.value = null
+  try {
+    const results = await testProviderApi()
+    const entries = Object.entries(results)
+    const allOk = entries.every(([, v]) => v.status === 'ok')
+    const someOk = entries.some(([, v]) => v.status === 'ok')
+    const summary = entries.map(([k, v]) => {
+      const icon = v.status === 'ok' ? '✅' : '❌'
+      const detail = v.status === 'ok' ? `${v.durationMs}ms` : (v.message || '失败')
+      return `${icon} ${k}: ${detail}`
+    }).join(' · ')
+    testResult.value = {
+      overall: allOk ? 'ok' : someOk ? 'partial' : 'fail',
+      text: summary
+    }
+    if (allOk) { ElMessage.success('所有 Provider 连通正常'); aiTestStatus.value = 'green' }
+    else if (someOk) { ElMessage.warning('部分 Provider 不可用，已触发降级'); aiTestStatus.value = 'yellow' }
+    else { ElMessage.error('所有 Provider 均不可用！'); aiTestStatus.value = 'red' }
+    await loadModelInfo()
+  } catch (e) {
+    testResult.value = { overall: 'fail', text: '测试失败: ' + e.message }
+    aiTestStatus.value = 'red'
+    ElMessage.error('AI 连通性测试失败: ' + e.message)
+  } finally { testingAI.value = false }
 }
 
 async function onUnlock(row) {
@@ -269,6 +317,29 @@ onMounted(() => loadAll())
 .dot-red { background: #fef0f0; color: #f56c6c; }
 .health-spacer { flex: 1; }
 .model-switch-tip { font-size: 12px; color: #e6a23c; }
+.test-result { font-size: 12px; padding: 2px 8px; border-radius: 12px; }
+.test-ok { background: #f0f9eb; color: #67c23a; }
+.test-partial { background: #fdf6ec; color: #e6a23c; }
+.test-fail { background: #fef0f0; color: #f56c6c; }
+
+/* Provider 状态条 */
+.provider-status-bar {
+  display: flex; align-items: center; gap: 10px; padding: 8px 16px;
+  background: #f8f9fc; border-radius: 10px; margin-bottom: 16px;
+  border: 1px solid #eee; font-size: 12px;
+}
+.provider-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 16px; font-weight: 500;
+}
+.chip-ok { background: #f0f9eb; color: #67c23a; border: 1px solid #d4edda; }
+.chip-bad { background: #fef0f0; color: #f56c6c; border: 1px solid #f5c6cb; }
+.chip-dot { width: 7px; height: 7px; border-radius: 50%; }
+.dot-active { background: #67c23a; animation: dotPulse 1.5s ease-in-out infinite; }
+.dot-standby { background: #c0c4cc; }
+@keyframes dotPulse { 0%,100% { opacity:1 } 50% { opacity:0.5 } }
+.chip-tag { font-size: 10px; opacity: 0.7; }
+.chip-state { opacity: 0.8; }
 
 /* 卡片 */
 .stat-row { margin-bottom: 16px; }
@@ -278,6 +349,7 @@ onMounted(() => loadAll())
 .stat-label { font-size: 12px; color: #888; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .section-card { border-radius: 14px !important; margin-bottom: 20px; }
+.section-card :deep(.el-card__body) { min-height: 200px; }
 .section-title { font-size: 16px; font-weight: 600; color: #1a1a2e; }
 .section-subtitle { font-size: 13px; color: #999; margin-left: 8px; }
 

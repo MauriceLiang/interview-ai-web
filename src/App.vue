@@ -219,10 +219,7 @@ async function confirmLeaveActiveInterview() {
 .brand-text {
   font-size: 20px;
   font-weight: 700;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #1a1a2e;
   letter-spacing: 1px;
 }
 

@@ -28,11 +28,11 @@
 
     <!-- Provider 详细状态 -->
     <div class="provider-status-bar" v-if="providerStatuses.length">
-      <span v-for="ps in providerStatuses" :key="ps.name" class="provider-chip" :class="'chip-' + (ps.available ? 'ok' : 'bad')">
+      <span v-for="ps in providerStatuses" :key="ps.name" class="provider-chip" :class="providerChipClass(ps)">
         <span class="chip-dot" :class="ps.active ? 'dot-active' : 'dot-standby'" />
         {{ ps.name }}
         <span class="chip-tag">{{ ps.active ? '当前' : '备用' }}</span>
-        <span class="chip-state">· {{ ps.circuitState === 'CLOSED' ? '正常' : ps.circuitState === 'HALF_OPEN' ? '半开' : ps.circuitState === 'OPEN' ? '熔断' : '未配置' }}</span>
+        <span class="chip-state">· {{ providerChipLabel(ps) }}</span>
       </span>
     </div>
 
@@ -214,6 +214,25 @@ const healthDots = computed(() => {
 
 function stateLabel(s) { const m = { CREATED:'已创建',WAITING:'等待',QUESTIONING:'提问中',ANSWERING:'回答中',SCORING:'评分中',COMPLETED:'已完成',EXPIRED:'已过期',INTERRUPTED:'中断',EXITED:'已退出' }; return m[s]||s }
 function stateTag(s) { const m = { CREATED:'info',WAITING:'info',QUESTIONING:'warning',COMPLETED:'success',EXPIRED:'danger',INTERRUPTED:'danger',EXITED:'info' }; return m[s]||'info' }
+
+/** Provider 芯片样式：有测试结果时优先使用测试结果，否则用熔断器状态 */
+function providerChipClass(ps) {
+  if (ps.lastTestOk !== null) {
+    return ps.lastTestOk ? 'chip-ok' : 'chip-bad'
+  }
+  return ps.available ? 'chip-ok' : 'chip-bad'
+}
+
+/** Provider 芯片状态标签：有测试结果时显示实际测试状态 */
+function providerChipLabel(ps) {
+  if (ps.lastTestOk !== null) {
+    return ps.lastTestOk ? '正常' : (ps.lastTestMessage || '异常')
+  }
+  if (ps.circuitState === 'CLOSED') return '正常'
+  if (ps.circuitState === 'HALF_OPEN') return '半开'
+  if (ps.circuitState === 'OPEN') return '熔断'
+  return '未配置'
+}
 
 async function loadAll() {
   loading.value = true

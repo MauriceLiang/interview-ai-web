@@ -34,6 +34,10 @@
           <el-icon><ChatDotRound /></el-icon>
           <span class="nav-label">交流</span>
         </el-menu-item>
+        <el-menu-item index="/forum">
+          <el-icon><Message /></el-icon>
+          <span class="nav-label">论坛</span>
+        </el-menu-item>
       </template>
 
       <!-- 管理员入口（管理员仅显示管理导航） -->
@@ -49,6 +53,10 @@
         <el-menu-item index="/chat">
           <el-icon><ChatDotRound /></el-icon>
           <span class="nav-label">交流大厅</span>
+        </el-menu-item>
+        <el-menu-item index="/forum">
+          <el-icon><Message /></el-icon>
+          <span class="nav-label">论坛</span>
         </el-menu-item>
         <el-menu-item index="/admin/analytics">
           <el-icon><TrendCharts /></el-icon>
@@ -88,7 +96,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { getMe, getToken, clearToken, setRole, getRole } from './api/index.js'
 import { ElMessageBox } from 'element-plus'
 import { connectPersonal, disconnectAll } from './lib/stomp.js'
-import { Notebook, Clock, Setting, User, SwitchButton, TrendCharts, ChatDotRound, EditPen } from '@element-plus/icons-vue'
+import { Notebook, Clock, Setting, User, SwitchButton, TrendCharts, ChatDotRound, EditPen, Message } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -118,8 +126,8 @@ onMounted(async () => {
       // 建立 WebSocket，登录后立即能收到 @通知
       connectPersonal(token)
 
-      // 管理员自动跳转到管理后台（除非已在管理页面或聊天室）
-      if (u.role === 'ADMIN' && !route.path.startsWith('/admin') && !route.path.startsWith('/chat')) {
+      // 管理员自动跳转到管理后台（除非已在管理页面、聊天室或论坛）
+      if (u.role === 'ADMIN' && !route.path.startsWith('/admin') && !route.path.startsWith('/chat') && !route.path.startsWith('/forum')) {
         window.location.hash = '#/admin/dashboard'
         return
       }

@@ -12,6 +12,7 @@ import AdminUsers from '../views/admin/AdminUsers.vue'
 import AdminAnalytics from '../views/admin/AdminAnalytics.vue'
 import ChatView from '../views/ChatView.vue'
 import WrongAnswerView from '../views/WrongAnswerView.vue'
+import ForumView from '../views/ForumView.vue'
 
 const routes = [
   { path: '/login', name: 'Login', component: LoginView, meta: { guest: true } },
@@ -30,6 +31,7 @@ const routes = [
   { path: '/admin/analytics', name: 'AdminAnalytics', component: AdminAnalytics, meta: { auth: true, admin: true } },
   { path: '/chat/:id', name: 'Chat', component: ChatView, meta: { auth: true } },
   { path: '/wrong-answers', name: 'WrongAnswers', component: WrongAnswerView, meta: { auth: true } },
+  { path: '/forum', name: 'Forum', component: ForumView, meta: { auth: true } },
   { path: '/chat', redirect: '/chat/1' },
 ]
 

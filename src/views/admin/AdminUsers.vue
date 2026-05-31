@@ -69,23 +69,17 @@
         <p class="page-desc">查看和管理平台用户账号</p>
       </div>
 
-      <!-- 搜索 -->
-      <el-card class="search-card">
-        <el-form :inline="true" @submit.prevent>
-          <el-form-item>
-            <el-input v-model="keyword" placeholder="用户名 / 邮箱" clearable @keyup.enter="onSearch" />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" @click="onSearch">搜索</el-button>
-            <el-button @click="keyword=''; onSearch()">重置</el-button>
-          </el-form-item>
-        </el-form>
-      </el-card>
+      <!-- 搜索（紧凑条状） -->
+      <div class="search-bar">
+        <el-input v-model="keyword" placeholder="用户名 / 邮箱" clearable @keyup.enter="onSearch" class="search-input" />
+        <el-button type="primary" @click="onSearch">搜索</el-button>
+        <el-button @click="keyword=''; onSearch()">重置</el-button>
+      </div>
 
       <!-- 用户列表 -->
       <el-card class="section-card">
         <el-table :data="list" stripe v-loading="loading" style="width:100%">
-          <el-table-column prop="id" label="ID" width="60" />
+          <el-table-column prop="id" label="ID" width="100" />
           <el-table-column label="用户名" min-width="120">
             <template #default="{ row }">
               <span>{{ row.username }}</span>
@@ -260,7 +254,8 @@ watch(userId, (newId) => {
 .page-title { font-size:24px; font-weight:700; color:#1a1a2e; margin:0 0 6px; }
 .page-desc { font-size:14px; color:#888; margin:0; }
 .back-btn { margin-bottom:12px; }
-.search-card { margin-bottom:16px; border-radius:14px !important; }
+.search-bar { display:flex; gap:10px; margin-bottom:16px; align-items:center; }
+.search-input { width:260px; }
 .section-card { border-radius:14px !important; }
 .section-title { font-size:16px; font-weight:600; color:#1a1a2e; }
 .pagination-wrap { display:flex; justify-content:center; margin-top:20px; }

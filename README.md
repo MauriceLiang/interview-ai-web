@@ -64,6 +64,8 @@
 | 🎯 **岗位选择** | 11 岗位卡片网格，简历上传一键关联专属面试 |
 | 📊 **实时评分** | 四维度进度条 + 环形总分图 + 改进建议列表 |
 | 📋 **能力报告** | 总分环形图 + AI 结构化分析 + 学习建议 + Markdown 导出 |
+| 📘 **错题本** | 面试中得分 < 60 分自动记录，支持手动添加、搜索和标准答案展开 |
+| 💬 **论坛** | 发帖讨论，标签分类，学习标签 AI 自动回复，评论互动 |
 | 💬 **实时聊天** | STOMP WebSocket 公共聊天室 + 禁言管理 + @提及通知 |
 | 🛡 **导航保护** | 面试中离开弹窗确认，防止意外中断 |
 | 🛠 **管理后台** | 仪表盘 + 用户管理 + 模型切换 + 数据分析（ECharts） |
@@ -160,10 +162,14 @@ zhimian01web/
     │   │   ├── setUserStatus / getLockedUsers / getAnomalies
     │   │   ├── getAnalytics / getProvider / switchProvider
     │   │   └── getUserSessions
-    │   └── chat.js                     # 聊天室 API
-    │       ├── getRooms / getHistory / getOnlineUsers
-    │       ├── muteUser / unmuteUser / getMutedUsers
-    │       └── getSpeakers
+    │   ├── chat.js                     # 聊天室 API
+    │   │   ├── getRooms / getHistory / getOnlineUsers
+    │   │   ├── muteUser / unmuteUser / getMutedUsers
+    │   │   └── getSpeakers
+    │   └── forum.js                    # 论坛 API
+    │       ├── getForumPosts / getForumPostDetail
+    │       ├── createForumPost / deleteForumPost
+    │       ├── togglePin / addForumComment
     │
     ├── lib/
     │   └── stomp.js                    # STOMP WebSocket 封装
@@ -222,6 +228,19 @@ zhimian01web/
         │   ├── 📝 AI 四维能力分析
         │   ├── 📚 学习建议列表
         │   └── 📥 Markdown 导出按钮
+        │
+        ├── WrongAnswerView.vue       # 📘 错题本
+        │   ├── 搜索栏
+        │   ├── 错题卡片列表（分数/标签/时间）
+        │   ├── 可展开的标准答案（Markdown 渲染）
+        │   └── 导出 Markdown
+        │
+        ├── ForumView.vue             # 💬 论坛
+        │   ├── 帖子卡片列表（置顶优先 + 标签筛选）
+        │   ├── 发帖弹窗（标签 + AI 回复提示）
+        │   ├── 帖子详情抽屉（评论/回复/删除）
+        │   ├── AI 自动回复（学习标签）
+        │   └── 我的帖子开关
         │
         ├── ChatView.vue               # 💬 公共聊天室
         │   ├── 在线用户列表
@@ -287,6 +306,8 @@ npm run preview    # 本地预览生产构建
 | `/history` | HistoryView | JWT | - | 面试历史列表 |
 | `/history/:id` | HistoryDetailView | JWT | - | 逐题回顾 + 评分 |
 | `/report/:sessionId` | ReportView | JWT | - | 能力分析报告 |
+| `/wrong-answers` | WrongAnswerView | JWT | - | 错题本 |
+| `/forum` | ForumView | JWT | - | 论坛 |
 | `/chat/:id` | ChatView | JWT | - | 公共聊天室 |
 | `/chat` | → `/chat/1` | JWT | - | 默认聊天室 |
 | `/admin/dashboard` | AdminDashboard | JWT | ADMIN | 管理仪表盘 |
@@ -371,6 +392,23 @@ router.beforeEach((to, from, next) => {
 - @提及通知（浏览器 Notification）
 - 管理员禁言/解禁
 - 连接异常自动重连（5 秒间隔）
+
+### 错题本
+
+- 面试中得分 < 60 分自动记录到错题本
+- 评分完成后可手动点击「添加到错题本」按钮
+- 错题列表展示题目、用户回答、得分
+- 标准答案按需展开查看（支持 Markdown 渲染）
+- 搜索错题 + 一键导出 Markdown 文档
+
+### 论坛
+
+- 发帖：标题 + 内容 + 多标签分类（面试/生活/学习/技术/资源分享）
+- 标签筛选和「我的帖子」过滤
+- AI 自动回复：选中「学习」标签时，后台 RabbitMQ 消费异步生成 AI 回复
+- 评论互动：支持回复他人评论
+- 管理员可置顶帖子，帖主和管理员可删除帖子
+- 所有用户可删除自己的帖子
 
 ### 管理后台
 

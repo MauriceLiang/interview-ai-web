@@ -248,13 +248,9 @@ a:hover {
   transform: scale(0.88);
 }
 
-/* Dialog 遮罩渐入 */
+/* Dialog 遮罩渐入渐出 */
 .el-overlay {
-  animation: overlayFadeIn 0.25s ease both;
-}
-@keyframes overlayFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  transition: opacity 0.25s ease;
 }
 
 /* 弹窗面板圆角 + 阴影 */

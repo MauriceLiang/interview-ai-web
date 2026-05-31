@@ -173,6 +173,44 @@ export function deleteResume(id) {
   return request(`/api/resume/${id}`, { method: 'DELETE' })
 }
 
+// ===== Wrong Answers =====
+export function getWrongAnswers(keyword = '') {
+  const params = keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''
+  return request(`/api/wrong-answers/list${params}`)
+}
+
+export function addWrongAnswer(qaRecordId) {
+  return request('/api/wrong-answers/add', {
+    method: 'POST',
+    body: JSON.stringify({ qaRecordId }),
+  })
+}
+
+export function deleteWrongAnswer(id) {
+  return request(`/api/wrong-answers/${id}`, { method: 'DELETE' })
+}
+
+/** 导出错题本为 Markdown 文档（触发浏览器下载） */
+export function exportWrongAnswersMd() {
+  const token = getToken()
+  return fetch(`/api/wrong-answers/export`, {
+    headers: { Authorization: `Bearer ${token}` },
+  }).then(res => {
+    if (!res.ok) throw new Error('导出失败')
+    return res.text()
+  }).then(text => {
+    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'zhimian-wrong-answers.md'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  })
+}
+
 // ===== SSE (返回 fetch Response) =====
 export function createSSE(path, signal) {
   const token = getToken()

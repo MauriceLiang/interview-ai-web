@@ -26,6 +26,10 @@
           <el-icon><Clock /></el-icon>
           <span class="nav-label">历史</span>
         </el-menu-item>
+        <el-menu-item index="/wrong-answers">
+          <el-icon><EditPen /></el-icon>
+          <span class="nav-label">错题本</span>
+        </el-menu-item>
         <el-menu-item index="/chat">
           <el-icon><ChatDotRound /></el-icon>
           <span class="nav-label">交流</span>
@@ -84,7 +88,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { getMe, getToken, clearToken, setRole, getRole } from './api/index.js'
 import { ElMessageBox } from 'element-plus'
 import { connectPersonal, disconnectAll } from './lib/stomp.js'
-import { Notebook, Clock, Setting, User, SwitchButton, TrendCharts, ChatDotRound } from '@element-plus/icons-vue'
+import { Notebook, Clock, Setting, User, SwitchButton, TrendCharts, ChatDotRound, EditPen } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()

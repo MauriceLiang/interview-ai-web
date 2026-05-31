@@ -11,6 +11,7 @@ import AdminDashboard from '../views/admin/AdminDashboard.vue'
 import AdminUsers from '../views/admin/AdminUsers.vue'
 import AdminAnalytics from '../views/admin/AdminAnalytics.vue'
 import ChatView from '../views/ChatView.vue'
+import WrongAnswerView from '../views/WrongAnswerView.vue'
 
 const routes = [
   { path: '/login', name: 'Login', component: LoginView, meta: { guest: true } },
@@ -28,6 +29,7 @@ const routes = [
   { path: '/admin/users/:id', name: 'AdminUserDetail', component: AdminUsers, meta: { auth: true, admin: true } },
   { path: '/admin/analytics', name: 'AdminAnalytics', component: AdminAnalytics, meta: { auth: true, admin: true } },
   { path: '/chat/:id', name: 'Chat', component: ChatView, meta: { auth: true } },
+  { path: '/wrong-answers', name: 'WrongAnswers', component: WrongAnswerView, meta: { auth: true } },
   { path: '/chat', redirect: '/chat/1' },
 ]
 

@@ -113,26 +113,32 @@
         </el-button>
       </div>
 
-      <!-- 提问中 — 输入回答（AI 出题时也可见，但出题中禁用） -->
-      <div v-if="state === 'QUESTIONING'" class="action-answer">
+      <!-- AI 出题中 — 等待出题完成 -->
+      <div v-if="state === 'QUESTIONING' && !questionComplete" class="action-waiting">
+        <div class="waiting-indicator">
+          <el-icon class="is-loading"><Loading /></el-icon>
+          <span>AI 正在组织题目…</span>
+        </div>
+      </div>
+
+      <!-- 出题完成 — 输入回答 -->
+      <div v-if="state === 'QUESTIONING' && questionComplete" class="action-answer">
         <el-input
           v-model="answer"
           type="textarea"
           :rows="3"
           placeholder="输入你的回答… (Enter 发送，Shift+Enter 换行)"
           @keydown="handleKeydown"
-          :disabled="submitting || thinking"
-          :placeholder="thinking ? 'AI 正在组织题目…' : '输入你的回答… (Enter 发送，Shift+Enter 换行)'"
         />
         <div class="action-btns">
-          <el-button type="primary" @click="onSubmit" :loading="submitting" :disabled="!answer.trim() || thinking">
-            {{ thinking ? '⏳ 题目生成中' : '📤 提交回答' }}
+          <el-button type="primary" @click="onSubmit" :loading="submitting" :disabled="!answer.trim()">
+            📤 提交回答
           </el-button>
           <span class="shortcut-hint">Enter 发送 · Shift+Enter 换行</span>
         </div>
       </div>
 
-      <!-- 评分中 — 显示等待状态，按钮不出现 -->
+      <!-- 评分中（等待 AI 返回结果） -->
       <div v-if="state === 'SCORING' && thinking" class="action-scoring">
         <div class="scoring-indicator">
           <el-icon class="is-loading"><Loading /></el-icon>
@@ -140,8 +146,27 @@
         </div>
       </div>
 
-      <!-- 评分完成 — 下一题 / 完成 -->
-      <div v-if="state === 'SCORING' && !thinking" class="action-next">
+      <!-- 评分流式输出中 — 等待输出完成 -->
+      <div v-if="state === 'SCORING' && !thinking && !scoringComplete" class="action-scoring-streaming">
+        <div class="scoring-waiting">⏳ 请耐心等待AI评分</div>
+      </div>
+
+      <!-- 评分完成 — 添加到错题本 + 下一题 / 完成 -->
+      <div v-if="state === 'SCORING' && scoringComplete" class="action-next">
+        <el-button
+          v-if="currentQaRecordId && !autoAdded"
+          :type="wrongAdded ? 'success' : 'warning'"
+          @click="onAddWrong"
+          :loading="addingWrong"
+          :disabled="wrongAdded"
+          size="small"
+          class="wrong-btn"
+          plain
+        >
+          <el-icon><EditPen /></el-icon>
+          <span>{{ wrongAdded ? '已添加' : '添加到错题本' }}</span>
+        </el-button>
+        <span v-if="autoAdded && currentScore < 60" class="auto-added-tip">📘 已自动加入错题本</span>
         <el-button type="primary" v-if="round + 1 < total" @click="onNext" :loading="loading" class="next-btn">
           <el-icon><ArrowRight /></el-icon>
           <span>下一题</span>
@@ -166,9 +191,9 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { getSessionDetail, startInterview, submitAnswer, nextRound, finishInterview, createSSE } from '../api/index.js'
+import { getSessionDetail, startInterview, submitAnswer, nextRound, finishInterview, createSSE, addWrongAnswer } from '../api/index.js'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowRight, Check, Document, Back, Loading } from '@element-plus/icons-vue'
+import { ArrowRight, Check, Document, Back, Loading, EditPen } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const id = parseInt(route.params.id)
@@ -183,11 +208,20 @@ const answer = ref('')
 const thinking = ref(false)
 const loading = ref(false)
 const submitting = ref(false)
+/** 出题流是否已完成（控制回答输入框可用） */
+const questionComplete = ref(false)
+/** 评分流是否已完成（控制按钮可点击） */
+const scoringComplete = ref(false)
 
 /** 当前累积的题目文本（SSE 流式拼接） */
 const currentQuestionText = ref('')
 /** 当前轮的 qaRecordId（由后端 submitAnswer 返回） */
 const currentQaRecordId = ref(null)
+// 错题本相关
+const currentScore = ref(0)
+const wrongAdded = ref(false)       // 当前题是否已添加到错题本
+const addingWrong = ref(false)      // 添加中
+const autoAdded = ref(false)        // 标记是否已因 < 60 分而自动添加
 /** 正在流式接收的消息在 msgs 数组中的索引，-1 表示没有正在流式接收的消息 */
 const streamingMsgIndex = ref(-1)
 
@@ -322,6 +356,7 @@ function openQuestionSSE() {
         }
         streamingMsgIndex.value = -1
         thinking.value = false
+        questionComplete.value = true
       }
     }, 15)
   }
@@ -437,6 +472,8 @@ async function onSubmit() {
   submitting.value = true
   cancelSSE()
 
+  scoringComplete.value = false  // 开始评分，锁定按钮
+
   // 先显示用户消息
   addMsg('me', text)
 
@@ -456,6 +493,7 @@ async function onSubmit() {
     ElMessage.error('提交失败: ' + e.message)
     state.value = 'QUESTIONING'
     thinking.value = false
+    scoringComplete.value = false
   } finally {
     submitting.value = false
   }
@@ -494,6 +532,7 @@ function openScoreSSE() {
         renderScoreCard(scoredData)
         streamingMsgIndex.value = -1
         thinking.value = false
+        scoringComplete.value = true
         cancelSSE()
       }
     }, 15)
@@ -543,7 +582,7 @@ function openScoreSSE() {
               for (const ch of data) {
                 charBuffer.push(ch)
               }
-              // 首个 chunk：初始化流式消息气泡
+              // 首个 chunk：初始化流式消息气泡，关闭三点加载动画
               if (localStreamingIdx === -1) {
                 thinking.value = false
                 localStreamingIdx = msgs.value.length
@@ -590,6 +629,14 @@ function openScoreSSE() {
 }
 
 function renderScoreCard(sc) {
+  // 保存当前题的 qaRecordId 和分数，供错题本按钮使用
+  currentQaRecordId.value = sc.qaRecordId || currentQaRecordId.value
+  currentScore.value = sc.totalScore || 0
+  wrongAdded.value = false
+  addingWrong.value = false
+  // 如果分数 < 60，标记为已自动添加（后端异步添加，前端不重复手动添加）
+  autoAdded.value = (sc.totalScore != null && sc.totalScore < 60)
+
   const dims = []
   if (sc.technicalAccuracy?.score != null) {
     dims.push({ name: 'technicalAccuracy', label: '技术准确性', score: sc.technicalAccuracy.score, color: '#409eff' })
@@ -613,10 +660,31 @@ function renderScoreCard(sc) {
   state.value = 'SCORING'
 }
 
+// ===== 添加到错题本 =====
+async function onAddWrong() {
+  if (!currentQaRecordId.value || wrongAdded.value) return
+  addingWrong.value = true
+  try {
+    await addWrongAnswer(currentQaRecordId.value)
+    wrongAdded.value = true
+    ElMessage.success('已添加到错题本')
+  } catch (e) {
+    ElMessage.warning('添加失败: ' + (e.message || '该题可能已在错题本中'))
+  } finally {
+    addingWrong.value = false
+  }
+}
+
 // ===== 下一轮 =====
 async function onNext() {
   cancelSSE()
   loading.value = true
+  // 重置状态
+  currentQaRecordId.value = null
+  currentScore.value = 0
+  wrongAdded.value = false
+  autoAdded.value = false
+  questionComplete.value = false
   try {
     const r = await nextRound(id)
     round.value = r.round || 0
@@ -1022,11 +1090,44 @@ function cancelSSE() {
   color: #bbb;
 }
 
+/* 出题等待 */
+.action-waiting {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px 0;
+}
+.waiting-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #909399;
+  font-size: 14px;
+}
+
 /* 评分中指示器 */
 .action-scoring {
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: 20px 0;
+}
+/* 评分流式输出中等待 */
+.action-scoring-streaming {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px 0;
+}
+.scoring-waiting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #909399;
+  font-size: 14px;
+  padding: 10px 24px;
+  background: #f8f9fc;
+  border-radius: 10px;
 }
 .scoring-indicator {
   display: flex;
@@ -1039,6 +1140,22 @@ function cancelSSE() {
 .scoring-indicator .el-icon {
   font-size: 20px;
   color: #409eff;
+}
+
+/* 错题本按钮 */
+.wrong-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.auto-added-tip {
+  font-size: 12px;
+  color: #e6a23c;
+  padding: 4px 10px;
+  background: #fdf6ec;
+  border-radius: 14px;
+  white-space: nowrap;
 }
 
 /* 下一题按钮 — 图标+文字居中 */
